@@ -2,6 +2,9 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import make_scorer, mean_squared_error, mean_absolute_error, r2_score
+from sklearn.model_selection import cross_val_score, KFold
 
 # Define tickers and date range
 tickers = ['^GSPC', '^IXIC', '^N225']
@@ -98,3 +101,60 @@ for ticker in tickers:
 gspc_df = data['^GSPC']
 ixic_df = data['^IXIC']
 n225_df = data['^N225']
+
+# Create the Random Forest model
+rf_regressor = RandomForestRegressor(
+    n_estimators=100,             # Increased number of trees
+    # bootstrap=True,               # Use bootstrap samples
+    random_state=42               # For reproducibility
+)
+
+# Set up 10-fold cross-validation
+kf = KFold(n_splits=10, shuffle=True, random_state=42)
+
+# Define custom scorers
+mse_scorer = make_scorer(mean_squared_error, greater_is_better=False)
+mae_scorer = make_scorer(mean_absolute_error, greater_is_better=False)
+r2_scorer = make_scorer(r2_score)
+
+# We need to define the features and target. Let's assume 'Adj Close' is the target
+features_gspc = gspc_df.drop(columns=['Adj Close'])
+target_gspc = gspc_df['Adj Close']
+
+# Perform cross-validation and compute scores
+mse_scores_gspc = cross_val_score(rf_regressor, features_gspc, target_gspc, cv=kf, scoring=mse_scorer)
+mae_scores_gspc = cross_val_score(rf_regressor, features_gspc, target_gspc, cv=kf, scoring=mae_scorer)
+r2_scores_gspc = cross_val_score(rf_regressor, features_gspc, target_gspc, cv=kf, scoring=r2_scorer)
+
+# Output results
+print("MSE scores for S&P 500:", -mse_scores_gspc)
+print("MAE scores for S&P 500:", -mae_scores_gspc)
+print("R^2 scores for S&P 500:", r2_scores_gspc)
+
+# We need to define the features and target. Let's assume 'Adj Close' is the target
+features_ixic = ixic_df.drop(columns=['Adj Close'])
+target_ixic = ixic_df['Adj Close']
+
+# Perform cross-validation and compute scores
+mse_scores_ixic = cross_val_score(rf_regressor, features_ixic, target_ixic, cv=kf, scoring=mse_scorer)
+mae_scores_ixic = cross_val_score(rf_regressor, features_ixic, target_ixic, cv=kf, scoring=mae_scorer)
+r2_scores_ixic = cross_val_score(rf_regressor, features_ixic, target_ixic, cv=kf, scoring=r2_scorer)
+
+# Output results
+print("MSE scores for NASDAQ:", -mse_scores_ixic)
+print("MAE scores for NASDAQ:", -mae_scores_ixic)
+print("R^2 scores for NASDAQ:", r2_scores_ixic)
+
+# We need to define the features and target. Let's assume 'Adj Close' is the target
+features_n225 = n225_df.drop(columns=['Adj Close'])
+target_n225 = n225_df['Adj Close']
+
+# Perform cross-validation and compute scores
+mse_scores_n225 = cross_val_score(rf_regressor, features_n225, target_n225, cv=kf, scoring=mse_scorer)
+mae_scores_n225 = cross_val_score(rf_regressor, features_n225, target_n225, cv=kf, scoring=mae_scorer)
+r2_scores_n225 = cross_val_score(rf_regressor, features_n225, target_n225, cv=kf, scoring=r2_scorer)
+
+# Output results
+print("MSE scores for Nikkei 225:", -mse_scores_n225)
+print("MAE scores for Nikkei 225:", -mae_scores_n225)
+print("R^2 scores for Nikkei 225:", r2_scores_n225)
