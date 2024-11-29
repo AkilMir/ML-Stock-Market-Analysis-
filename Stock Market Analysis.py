@@ -158,3 +158,55 @@ r2_scores_n225 = cross_val_score(rf_regressor, features_n225, target_n225, cv=kf
 print("MSE scores for Nikkei 225:", -mse_scores_n225)
 print("MAE scores for Nikkei 225:", -mae_scores_n225)
 print("R^2 scores for Nikkei 225:", r2_scores_n225)
+
+# Define the MLP regressor
+
+# Initialize MLPRegressor with specific parameters
+mlp_regressor = MLPRegressor(
+    hidden_layer_sizes=(100, 50),  # Two layers with 100 and 50 neurons
+    activation='tanh',             # 'relu' or 'tanh'
+    solver='adam',                 # 'adam' or 'sgd'
+    alpha=0.001,                   # Regularization strength
+    learning_rate='constant',      # 'constant' or 'adaptive'
+    max_iter=500,                  # Number of iterations
+    random_state=42
+)
+
+# Applying normalization to the features for the MLP model as it is sensitive to the magnitude of input features
+scaler = StandardScaler()
+
+def train_and_evaluate_mlp(df, features, target):
+    # Extract features and target from the dataframe
+    X = df[features]
+    y = df[target]
+    
+    # Scale the features
+    X_scaled = scaler.fit_transform(X)
+    
+    # Perform 10-fold cross-validation
+    mse_scores = cross_val_score(mlp_regressor, X_scaled, y, cv=kf, scoring=mse_scorer)
+    mae_scores = cross_val_score(mlp_regressor, X_scaled, y, cv=kf, scoring=mae_scorer)
+    r2_scores = cross_val_score(mlp_regressor, X_scaled, y, cv=kf, scoring=r2_scorer)
+    
+    return -mse_scores, -mae_scores, r2_scores
+
+# S&P 500 MLP Regression Evaluation
+features_gspc = gspc_df.drop(columns=['Adj Close']).columns.tolist()
+mse_scores_gspc, mae_scores_gspc, r2_scores_gspc = train_and_evaluate_mlp(gspc_df, features_gspc, 'Adj Close')
+print("MLP MSE scores for S&P 500:", mse_scores_gspc)
+print("MLP MAE scores for S&P 500:", mae_scores_gspc)
+print("MLP R^2 scores for S&P 500:", r2_scores_gspc)
+
+# NASDAQ MLP Regression Evaluation
+features_ixic = ixic_df.drop(columns=['Adj Close']).columns.tolist()
+mse_scores_ixic, mae_scores_ixic, r2_scores_ixic = train_and_evaluate_mlp(ixic_df, features_ixic, 'Adj Close')
+print("MLP MSE scores for NASDAQ:", mse_scores_ixic)
+print("MLP MAE scores for NASDAQ:", mae_scores_ixic)
+print("MLP R^2 scores for NASDAQ:", r2_scores_ixic)
+
+# Nikkei 225 MLP Regression Evaluation
+features_n225 = n225_df.drop(columns=['Adj Close']).columns.tolist()
+mse_scores_n225, mae_scores_n225, r2_scores_n225 = train_and_evaluate_mlp(n225_df, features_n225, 'Adj Close')
+print("MLP MSE scores for Nikkei 225:", mse_scores_n225)
+print("MLP MAE scores for Nikkei 225:", mae_scores_n225)
+print("MLP R^2 scores for Nikkei 225:", r2_scores_n225)
