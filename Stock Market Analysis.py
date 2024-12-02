@@ -5,6 +5,10 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import make_scorer, mean_squared_error, mean_absolute_error, r2_score
 from sklearn.model_selection import cross_val_score, KFold
+from sklearn.neural_network import MLPRegressor
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import GridSearchCV
+from sklearn.linear_model import LinearRegression
 
 # Define tickers and date range
 tickers = ['^GSPC', '^IXIC', '^N225']
@@ -210,3 +214,39 @@ mse_scores_n225, mae_scores_n225, r2_scores_n225 = train_and_evaluate_mlp(n225_d
 print("MLP MSE scores for Nikkei 225:", mse_scores_n225)
 print("MLP MAE scores for Nikkei 225:", mae_scores_n225)
 print("MLP R^2 scores for Nikkei 225:", r2_scores_n225)
+
+# Initialize the Linear Regression model
+lr_regressor = LinearRegression()
+
+def train_and_evaluate_lr(df, features, target):
+    # Extract features and target from the dataframe
+    X = df[features]
+    y = df[target]
+    
+    # Perform 10-fold cross-validation
+    mse_scores = cross_val_score(lr_regressor, X, y, cv=kf, scoring=mse_scorer)
+    mae_scores = cross_val_score(lr_regressor, X, y, cv=kf, scoring=mae_scorer)
+    r2_scores = cross_val_score(lr_regressor, X, y, cv=kf, scoring=r2_scorer)
+    
+    return -mse_scores, -mae_scores, r2_scores
+
+# S&P 500 Linear Regression Evaluation
+features_gspc = gspc_df.drop(columns=['Adj Close']).columns.tolist()
+mse_scores_gspc, mae_scores_gspc, r2_scores_gspc = train_and_evaluate_lr(gspc_df, features_gspc, 'Adj Close')
+print("Linear Regression MSE scores for S&P 500:", mse_scores_gspc)
+print("Linear Regression MAE scores for S&P 500:", mae_scores_gspc)
+print("Linear Regression R^2 scores for S&P 500:", r2_scores_gspc)
+
+# NASDAQ Linear Regression Evaluation
+features_ixic = ixic_df.drop(columns=['Adj Close']).columns.tolist()
+mse_scores_ixic, mae_scores_ixic, r2_scores_ixic = train_and_evaluate_lr(ixic_df, features_ixic, 'Adj Close')
+print("Linear Regression MSE scores for NASDAQ:", mse_scores_ixic)
+print("Linear Regression MAE scores for NASDAQ:", mae_scores_ixic)
+print("Linear Regression R^2 scores for NASDAQ:", r2_scores_ixic)
+
+# Nikkei 225 Linear Regression Evaluation
+features_n225 = n225_df.drop(columns=['Adj Close']).columns.tolist()
+mse_scores_n225, mae_scores_n225, r2_scores_n225 = train_and_evaluate_lr(n225_df, features_n225, 'Adj Close')
+print("Linear Regression MSE scores for Nikkei 225:", mse_scores_n225)
+print("Linear Regression MAE scores for Nikkei 225:", mae_scores_n225)
+print("Linear Regression R^2 scores for Nikkei 225:", r2_scores_n225)
