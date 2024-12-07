@@ -9,6 +9,7 @@ from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import GridSearchCV
 from sklearn.linear_model import LinearRegression
+import os
 
 # Define tickers and date range
 tickers = ['^GSPC', '^IXIC', '^N225']
@@ -106,147 +107,281 @@ gspc_df = data['^GSPC']
 ixic_df = data['^IXIC']
 n225_df = data['^N225']
 
-# Create the Random Forest model
-rf_regressor = RandomForestRegressor(
-    n_estimators=100,             # Increased number of trees
-    # bootstrap=True,               # Use bootstrap samples
-    random_state=42               # For reproducibility
-)
 
-# Set up 10-fold cross-validation
-kf = KFold(n_splits=10, shuffle=True, random_state=42)
 
-# Define custom scorers
-mse_scorer = make_scorer(mean_squared_error, greater_is_better=False)
-mae_scorer = make_scorer(mean_absolute_error, greater_is_better=False)
-r2_scorer = make_scorer(r2_score)
+# # Create the Random Forest model
+# rf_regressor = RandomForestRegressor(
+#     n_estimators=100,             # Increased number of trees
+#     # bootstrap=True,               # Use bootstrap samples
+#     random_state=42               # For reproducibility
+# )
 
-# We need to define the features and target. Let's assume 'Adj Close' is the target
-features_gspc = gspc_df.drop(columns=['Adj Close'])
-target_gspc = gspc_df['Adj Close']
+# # Set up 10-fold cross-validation
+# kf = KFold(n_splits=10, shuffle=True, random_state=42)
 
-# Perform cross-validation and compute scores
-mse_scores_gspc = cross_val_score(rf_regressor, features_gspc, target_gspc, cv=kf, scoring=mse_scorer)
-mae_scores_gspc = cross_val_score(rf_regressor, features_gspc, target_gspc, cv=kf, scoring=mae_scorer)
-r2_scores_gspc = cross_val_score(rf_regressor, features_gspc, target_gspc, cv=kf, scoring=r2_scorer)
+# # Define custom scorers
+# mse_scorer = make_scorer(mean_squared_error, greater_is_better=False)
+# mae_scorer = make_scorer(mean_absolute_error, greater_is_better=False)
+# r2_scorer = make_scorer(r2_score)
 
-# Output results
-print("MSE scores for S&P 500:", -mse_scores_gspc)
-print("MAE scores for S&P 500:", -mae_scores_gspc)
-print("R^2 scores for S&P 500:", r2_scores_gspc)
+# # We need to define the features and target. Let's assume 'Adj Close' is the target
+# features_gspc = gspc_df.drop(columns=['Adj Close'])
+# target_gspc = gspc_df['Adj Close']
 
-# We need to define the features and target. Let's assume 'Adj Close' is the target
-features_ixic = ixic_df.drop(columns=['Adj Close'])
-target_ixic = ixic_df['Adj Close']
+# # Perform cross-validation and compute scores
+# mse_scores_gspc = cross_val_score(rf_regressor, features_gspc, target_gspc, cv=kf, scoring=mse_scorer)
+# mae_scores_gspc = cross_val_score(rf_regressor, features_gspc, target_gspc, cv=kf, scoring=mae_scorer)
+# r2_scores_gspc = cross_val_score(rf_regressor, features_gspc, target_gspc, cv=kf, scoring=r2_scorer)
 
-# Perform cross-validation and compute scores
-mse_scores_ixic = cross_val_score(rf_regressor, features_ixic, target_ixic, cv=kf, scoring=mse_scorer)
-mae_scores_ixic = cross_val_score(rf_regressor, features_ixic, target_ixic, cv=kf, scoring=mae_scorer)
-r2_scores_ixic = cross_val_score(rf_regressor, features_ixic, target_ixic, cv=kf, scoring=r2_scorer)
+# # Output results
+# print("MSE scores for S&P 500:", -mse_scores_gspc)
+# print("MAE scores for S&P 500:", -mae_scores_gspc)
+# print("R^2 scores for S&P 500:", r2_scores_gspc)
 
-# Output results
-print("MSE scores for NASDAQ:", -mse_scores_ixic)
-print("MAE scores for NASDAQ:", -mae_scores_ixic)
-print("R^2 scores for NASDAQ:", r2_scores_ixic)
+# # We need to define the features and target. Let's assume 'Adj Close' is the target
+# features_ixic = ixic_df.drop(columns=['Adj Close'])
+# target_ixic = ixic_df['Adj Close']
 
-# We need to define the features and target. Let's assume 'Adj Close' is the target
-features_n225 = n225_df.drop(columns=['Adj Close'])
-target_n225 = n225_df['Adj Close']
+# # Perform cross-validation and compute scores
+# mse_scores_ixic = cross_val_score(rf_regressor, features_ixic, target_ixic, cv=kf, scoring=mse_scorer)
+# mae_scores_ixic = cross_val_score(rf_regressor, features_ixic, target_ixic, cv=kf, scoring=mae_scorer)
+# r2_scores_ixic = cross_val_score(rf_regressor, features_ixic, target_ixic, cv=kf, scoring=r2_scorer)
 
-# Perform cross-validation and compute scores
-mse_scores_n225 = cross_val_score(rf_regressor, features_n225, target_n225, cv=kf, scoring=mse_scorer)
-mae_scores_n225 = cross_val_score(rf_regressor, features_n225, target_n225, cv=kf, scoring=mae_scorer)
-r2_scores_n225 = cross_val_score(rf_regressor, features_n225, target_n225, cv=kf, scoring=r2_scorer)
+# # Output results
+# print("MSE scores for NASDAQ:", -mse_scores_ixic)
+# print("MAE scores for NASDAQ:", -mae_scores_ixic)
+# print("R^2 scores for NASDAQ:", r2_scores_ixic)
 
-# Output results
-print("MSE scores for Nikkei 225:", -mse_scores_n225)
-print("MAE scores for Nikkei 225:", -mae_scores_n225)
-print("R^2 scores for Nikkei 225:", r2_scores_n225)
+# # We need to define the features and target. Let's assume 'Adj Close' is the target
+# features_n225 = n225_df.drop(columns=['Adj Close'])
+# target_n225 = n225_df['Adj Close']
 
-# Define the MLP regressor
+# # Perform cross-validation and compute scores
+# mse_scores_n225 = cross_val_score(rf_regressor, features_n225, target_n225, cv=kf, scoring=mse_scorer)
+# mae_scores_n225 = cross_val_score(rf_regressor, features_n225, target_n225, cv=kf, scoring=mae_scorer)
+# r2_scores_n225 = cross_val_score(rf_regressor, features_n225, target_n225, cv=kf, scoring=r2_scorer)
 
-# Initialize MLPRegressor with specific parameters
-mlp_regressor = MLPRegressor(
-    hidden_layer_sizes=(100, 50),  # Two layers with 100 and 50 neurons
-    activation='tanh',             # 'relu' or 'tanh'
-    solver='adam',                 # 'adam' or 'sgd'
-    alpha=0.001,                   # Regularization strength
-    learning_rate='constant',      # 'constant' or 'adaptive'
-    max_iter=500,                  # Number of iterations
-    random_state=42
-)
+# # Output results
+# print("MSE scores for Nikkei 225:", -mse_scores_n225)
+# print("MAE scores for Nikkei 225:", -mae_scores_n225)
+# print("R^2 scores for Nikkei 225:", r2_scores_n225)
 
-# Applying normalization to the features for the MLP model as it is sensitive to the magnitude of input features
-scaler = StandardScaler()
+# # Define the MLP regressor
 
-def train_and_evaluate_mlp(df, features, target):
-    # Extract features and target from the dataframe
-    X = df[features]
-    y = df[target]
+# # Initialize MLPRegressor with specific parameters
+# mlp_regressor = MLPRegressor(
+#     hidden_layer_sizes=(100, 50),  # Two layers with 100 and 50 neurons
+#     activation='tanh',             # 'relu' or 'tanh'
+#     solver='adam',                 # 'adam' or 'sgd'
+#     alpha=0.001,                   # Regularization strength
+#     learning_rate='constant',      # 'constant' or 'adaptive'
+#     max_iter=500,                  # Number of iterations
+#     random_state=42
+# )
+
+# # Applying normalization to the features for the MLP model as it is sensitive to the magnitude of input features
+# scaler = StandardScaler()
+
+# def train_and_evaluate_mlp(df, features, target):
+#     # Extract features and target from the dataframe
+#     X = df[features]
+#     y = df[target]
     
-    # Scale the features
-    X_scaled = scaler.fit_transform(X)
+#     # Scale the features
+#     X_scaled = scaler.fit_transform(X)
+    
+#     # Perform 10-fold cross-validation
+#     mse_scores = cross_val_score(mlp_regressor, X_scaled, y, cv=kf, scoring=mse_scorer)
+#     mae_scores = cross_val_score(mlp_regressor, X_scaled, y, cv=kf, scoring=mae_scorer)
+#     r2_scores = cross_val_score(mlp_regressor, X_scaled, y, cv=kf, scoring=r2_scorer)
+    
+#     return -mse_scores, -mae_scores, r2_scores
+
+# # S&P 500 MLP Regression Evaluation
+# features_gspc = gspc_df.drop(columns=['Adj Close']).columns.tolist()
+# mse_scores_gspc, mae_scores_gspc, r2_scores_gspc = train_and_evaluate_mlp(gspc_df, features_gspc, 'Adj Close')
+# print("MLP MSE scores for S&P 500:", mse_scores_gspc)
+# print("MLP MAE scores for S&P 500:", mae_scores_gspc)
+# print("MLP R^2 scores for S&P 500:", r2_scores_gspc)
+
+# # NASDAQ MLP Regression Evaluation
+# features_ixic = ixic_df.drop(columns=['Adj Close']).columns.tolist()
+# mse_scores_ixic, mae_scores_ixic, r2_scores_ixic = train_and_evaluate_mlp(ixic_df, features_ixic, 'Adj Close')
+# print("MLP MSE scores for NASDAQ:", mse_scores_ixic)
+# print("MLP MAE scores for NASDAQ:", mae_scores_ixic)
+# print("MLP R^2 scores for NASDAQ:", r2_scores_ixic)
+
+# # Nikkei 225 MLP Regression Evaluation
+# features_n225 = n225_df.drop(columns=['Adj Close']).columns.tolist()
+# mse_scores_n225, mae_scores_n225, r2_scores_n225 = train_and_evaluate_mlp(n225_df, features_n225, 'Adj Close')
+# print("MLP MSE scores for Nikkei 225:", mse_scores_n225)
+# print("MLP MAE scores for Nikkei 225:", mae_scores_n225)
+# print("MLP R^2 scores for Nikkei 225:", r2_scores_n225)
+
+# # Initialize the Linear Regression model
+# lr_regressor = LinearRegression()
+
+# def train_and_evaluate_lr(df, features, target):
+#     # Extract features and target from the dataframe
+#     X = df[features]
+#     y = df[target]
+    
+#     # Perform 10-fold cross-validation
+#     mse_scores = cross_val_score(lr_regressor, X, y, cv=kf, scoring=mse_scorer)
+#     mae_scores = cross_val_score(lr_regressor, X, y, cv=kf, scoring=mae_scorer)
+#     r2_scores = cross_val_score(lr_regressor, X, y, cv=kf, scoring=r2_scorer)
+    
+#     return -mse_scores, -mae_scores, r2_scores
+
+# # S&P 500 Linear Regression Evaluation
+# features_gspc = gspc_df.drop(columns=['Adj Close']).columns.tolist()
+# mse_scores_gspc, mae_scores_gspc, r2_scores_gspc = train_and_evaluate_lr(gspc_df, features_gspc, 'Adj Close')
+# print("Linear Regression MSE scores for S&P 500:", mse_scores_gspc)
+# print("Linear Regression MAE scores for S&P 500:", mae_scores_gspc)
+# print("Linear Regression R^2 scores for S&P 500:", r2_scores_gspc)
+
+# # NASDAQ Linear Regression Evaluation
+# features_ixic = ixic_df.drop(columns=['Adj Close']).columns.tolist()
+# mse_scores_ixic, mae_scores_ixic, r2_scores_ixic = train_and_evaluate_lr(ixic_df, features_ixic, 'Adj Close')
+# print("Linear Regression MSE scores for NASDAQ:", mse_scores_ixic)
+# print("Linear Regression MAE scores for NASDAQ:", mae_scores_ixic)
+# print("Linear Regression R^2 scores for NASDAQ:", r2_scores_ixic)
+
+# # Nikkei 225 Linear Regression Evaluation
+# features_n225 = n225_df.drop(columns=['Adj Close']).columns.tolist()
+# mse_scores_n225, mae_scores_n225, r2_scores_n225 = train_and_evaluate_lr(n225_df, features_n225, 'Adj Close')
+# print("Linear Regression MSE scores for Nikkei 225:", mse_scores_n225)
+# print("Linear Regression MAE scores for Nikkei 225:", mae_scores_n225)
+# print("Linear Regression R^2 scores for Nikkei 225:", r2_scores_n225)
+
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense, Dropout
+
+# Create sequences for LSTM
+def create_lstm_sequences(df, target_col, n_steps):
+    X, y = [], []
+    for i in range(len(df) - n_steps):
+        X.append(df.iloc[i:i + n_steps].values)
+        y.append(df.iloc[i + n_steps][target_col])
+    return np.array(X), np.array(y)
+
+# Define the LSTM model
+def create_lstm_model(input_shape):
+    model = Sequential([
+        LSTM(50, activation='tanh', return_sequences=True, input_shape=input_shape),
+        Dropout(0.2),
+        LSTM(50, activation='tanh'),
+        Dropout(0.2),
+        Dense(1)
+    ])
+    model.compile(optimizer='adam', loss='mse', metrics=['mae'])
+    return model
+
+# Perform 10-fold cross-validation for LSTM
+def cross_validate_lstm(X, y, n_splits=10, n_steps=30, epochs=20, batch_size=32):
+    kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+    mse_scores, mae_scores, r2_scores = [], [], []
+    
+    for train_index, test_index in kf.split(X):
+        # Split data into train and test for this fold
+        X_train, X_test = X[train_index], X[test_index]
+        y_train, y_test = y[train_index], y[test_index]
+
+        # Create and train the model
+        model = create_lstm_model(input_shape=(X_train.shape[1], X_train.shape[2]))
+        model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=0)
+
+        # Evaluate on the test set
+        y_pred = model.predict(X_test).flatten()
+        mse_scores.append(mean_squared_error(y_test, y_pred))
+        mae_scores.append(mean_absolute_error(y_test, y_pred))
+        r2_scores.append(r2_score(y_test, y_pred))
+    
+    return mse_scores, mae_scores, r2_scores
+
+# Prepare data for each index using only the original features
+n_steps = 30  # Number of past days used to predict the next day's price
+results = {}
+
+# Iterate through indices and dynamically select available original features
+for index_name, df in {"S&P 500": gspc_df, "NASDAQ": ixic_df, "Nikkei 225": n225_df}.items():
+    print(f"\nCross-validating for {index_name} with original features only...")
+    
+    # Dynamically select only existing original features
+    available_features = [col for col in ['Open', 'High', 'Low', 'Adj Close', 'Volume'] if col in df.columns]
+    original_features_df = df[available_features]
+    
+    # Create sequences
+    X, y = create_lstm_sequences(original_features_df, target_col='Adj Close', n_steps=n_steps)
     
     # Perform 10-fold cross-validation
-    mse_scores = cross_val_score(mlp_regressor, X_scaled, y, cv=kf, scoring=mse_scorer)
-    mae_scores = cross_val_score(mlp_regressor, X_scaled, y, cv=kf, scoring=mae_scorer)
-    r2_scores = cross_val_score(mlp_regressor, X_scaled, y, cv=kf, scoring=r2_scorer)
+    mse, mae, r2 = cross_validate_lstm(X, y, n_splits=10, n_steps=n_steps, epochs=20, batch_size=32)
+    results[index_name] = {"MSE": mse, "MAE": mae, "R^2": r2}
     
-    return -mse_scores, -mae_scores, r2_scores
+    # Print results
+    print(f"{index_name} Results:")
+    print(f"Average MSE: {np.mean(mse):.5f}, Average MAE: {np.mean(mae):.5f}, Average R^2: {np.mean(r2):.5f}")
 
-# S&P 500 MLP Regression Evaluation
-features_gspc = gspc_df.drop(columns=['Adj Close']).columns.tolist()
-mse_scores_gspc, mae_scores_gspc, r2_scores_gspc = train_and_evaluate_mlp(gspc_df, features_gspc, 'Adj Close')
-print("MLP MSE scores for S&P 500:", mse_scores_gspc)
-print("MLP MAE scores for S&P 500:", mae_scores_gspc)
-print("MLP R^2 scores for S&P 500:", r2_scores_gspc)
+# def create_lstm_sequences(df, target_col, n_steps):
+#     X, y = [], []
+#     for i in range(len(df) - n_steps):
+#         X.append(df.iloc[i:i + n_steps].values)
+#         y.append(df.iloc[i + n_steps][target_col])
+#     return np.array(X), np.array(y)
 
-# NASDAQ MLP Regression Evaluation
-features_ixic = ixic_df.drop(columns=['Adj Close']).columns.tolist()
-mse_scores_ixic, mae_scores_ixic, r2_scores_ixic = train_and_evaluate_mlp(ixic_df, features_ixic, 'Adj Close')
-print("MLP MSE scores for NASDAQ:", mse_scores_ixic)
-print("MLP MAE scores for NASDAQ:", mae_scores_ixic)
-print("MLP R^2 scores for NASDAQ:", r2_scores_ixic)
+# # Define the LSTM model
+# def create_lstm_model(input_shape):
+#     model = Sequential([
+#         LSTM(50, activation='tanh', return_sequences=True, input_shape=input_shape),
+#         Dropout(0.2),
+#         LSTM(50, activation='tanh'),
+#         Dropout(0.2),
+#         Dense(1)
+#     ])
+#     model.compile(optimizer='adam', loss='mse', metrics=['mae'])
+#     return model
 
-# Nikkei 225 MLP Regression Evaluation
-features_n225 = n225_df.drop(columns=['Adj Close']).columns.tolist()
-mse_scores_n225, mae_scores_n225, r2_scores_n225 = train_and_evaluate_mlp(n225_df, features_n225, 'Adj Close')
-print("MLP MSE scores for Nikkei 225:", mse_scores_n225)
-print("MLP MAE scores for Nikkei 225:", mae_scores_n225)
-print("MLP R^2 scores for Nikkei 225:", r2_scores_n225)
-
-# Initialize the Linear Regression model
-lr_regressor = LinearRegression()
-
-def train_and_evaluate_lr(df, features, target):
-    # Extract features and target from the dataframe
-    X = df[features]
-    y = df[target]
+# # Perform 10-fold cross-validation for LSTM
+# def cross_validate_lstm(X, y, n_splits=10, n_steps=30, epochs=20, batch_size=32):
+#     kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+#     mse_scores, mae_scores, r2_scores = [], [], []
     
-    # Perform 10-fold cross-validation
-    mse_scores = cross_val_score(lr_regressor, X, y, cv=kf, scoring=mse_scorer)
-    mae_scores = cross_val_score(lr_regressor, X, y, cv=kf, scoring=mae_scorer)
-    r2_scores = cross_val_score(lr_regressor, X, y, cv=kf, scoring=r2_scorer)
+#     for train_index, test_index in kf.split(X):
+#         # Split data into train and test for this fold
+#         X_train, X_test = X[train_index], X[test_index]
+#         y_train, y_test = y[train_index], y[test_index]
+
+#         # Create and train the model
+#         model = create_lstm_model(input_shape=(X_train.shape[1], X_train.shape[2]))
+#         model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=0)
+
+#         # Evaluate on the test set
+#         y_pred = model.predict(X_test).flatten()
+#         mse_scores.append(mean_squared_error(y_test, y_pred))
+#         mae_scores.append(mean_absolute_error(y_test, y_pred))
+#         r2_scores.append(r2_score(y_test, y_pred))
     
-    return -mse_scores, -mae_scores, r2_scores
+#     return mse_scores, mae_scores, r2_scores
 
-# S&P 500 Linear Regression Evaluation
-features_gspc = gspc_df.drop(columns=['Adj Close']).columns.tolist()
-mse_scores_gspc, mae_scores_gspc, r2_scores_gspc = train_and_evaluate_lr(gspc_df, features_gspc, 'Adj Close')
-print("Linear Regression MSE scores for S&P 500:", mse_scores_gspc)
-print("Linear Regression MAE scores for S&P 500:", mae_scores_gspc)
-print("Linear Regression R^2 scores for S&P 500:", r2_scores_gspc)
+# # Prepare data for each index
+# n_steps = 30  # Number of past days used to predict the next day's price
+# results = {}
 
-# NASDAQ Linear Regression Evaluation
-features_ixic = ixic_df.drop(columns=['Adj Close']).columns.tolist()
-mse_scores_ixic, mae_scores_ixic, r2_scores_ixic = train_and_evaluate_lr(ixic_df, features_ixic, 'Adj Close')
-print("Linear Regression MSE scores for NASDAQ:", mse_scores_ixic)
-print("Linear Regression MAE scores for NASDAQ:", mae_scores_ixic)
-print("Linear Regression R^2 scores for NASDAQ:", r2_scores_ixic)
+# for index_name, df in {"S&P 500": gspc_df, "NASDAQ": ixic_df, "Nikkei 225": n225_df}.items():
+#     print(f"\nCross-validating for {index_name}...")
+#     X, y = create_lstm_sequences(df, target_col='Adj Close', n_steps=n_steps)
+#     mse, mae, r2 = cross_validate_lstm(X, y, n_splits=10, n_steps=n_steps, epochs=20, batch_size=32)
+#     results[index_name] = {"MSE": mse, "MAE": mae, "R^2": r2}
+#     print(f"{index_name} Results:")
+#     print(f"Average MSE: {np.mean(mse):.5f}, Average MAE: {np.mean(mae):.5f}, Average R^2: {np.mean(r2):.5f}")
 
-# Nikkei 225 Linear Regression Evaluation
-features_n225 = n225_df.drop(columns=['Adj Close']).columns.tolist()
-mse_scores_n225, mae_scores_n225, r2_scores_n225 = train_and_evaluate_lr(n225_df, features_n225, 'Adj Close')
-print("Linear Regression MSE scores for Nikkei 225:", mse_scores_n225)
-print("Linear Regression MAE scores for Nikkei 225:", mae_scores_n225)
-print("Linear Regression R^2 scores for Nikkei 225:", r2_scores_n225)
+# Visualize results for each index
+# for index_name, metrics in results.items():
+#     plt.figure(figsize=(10, 6))
+#     plt.plot(metrics['MSE'], label="MSE", marker='o')
+#     plt.plot(metrics['MAE'], label="MAE", marker='o')
+#     plt.title(f"{index_name} Cross-Validation Metrics")
+#     plt.xlabel("Fold")
+#     plt.ylabel("Score")
+#     plt.legend()
+#     plt.show()
