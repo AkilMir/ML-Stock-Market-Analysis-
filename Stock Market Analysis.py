@@ -107,8 +107,6 @@ gspc_df = data['^GSPC']
 ixic_df = data['^IXIC']
 n225_df = data['^N225']
 
-
-
 # # Create the Random Forest model
 # rf_regressor = RandomForestRegressor(
 #     n_estimators=100,             # Increased number of trees

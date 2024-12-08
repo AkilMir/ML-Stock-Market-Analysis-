@@ -2,91 +2,133 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense, Dropout
+from sklearn.svm import SVR
+from xgboost import XGBRegressor
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
-# Define tickers and date range
+# -----------------------------
+# Configuration
+# -----------------------------
 tickers = ['^GSPC', '^IXIC', '^N225']
 start_date = '2010-01-01'
 end_date = '2022-01-01'
+train_end_date = '2018-01-01'  # Split date
 
-# Fetch data
+n_steps = 30
+epochs = 20
+batch_size = 32
+
+selected_features = ['Open', 'High', 'Low', 'Adj Close', 'Volume', 'RSI_14', 'MACD', 'Signal_Line']
+
+# -----------------------------
+# Data Fetching
+# -----------------------------
 data = yf.download(tickers, start=start_date, end=end_date, group_by='ticker')
 
-# Drop 'Close' from each ticker in the DataFrame
+# Remove 'Close' columns to avoid confusion (already have Adj Close)
 for ticker in tickers:
-    if (ticker, 'Close') in data.columns:  # Check if the 'Close' column exists
-        data.drop(columns=[(ticker, 'Close')], inplace=True)  # Drop the 'Close' column
+    if (ticker, 'Close') in data.columns:
+        data.drop(columns=[(ticker, 'Close')], inplace=True)
 
-# Apply LOCF for missing values across the entire dataset
+# Forward-fill missing values
 data = data.ffill()
 
-# Define windows for indicators
+# -----------------------------
+# Compute Technical Indicators
+# -----------------------------
 window_rsi = 14
 window_macd_short = 12
 window_macd_long = 26
 signal_line_window = 9
 
-# Calculate indicators and keep only less correlated features
 for ticker in tickers:
-    # Get the position of 'Adj Close' for each ticker to start inserting new features after it
-    position = data.columns.get_loc((ticker, 'Adj Close')) + 1
-
-    # Insert RSI
+    # Compute RSI
     delta = data[(ticker, 'Adj Close')].diff(1)
     gain = delta.where(delta > 0, 0).rolling(window=window_rsi).mean()
     loss = -delta.where(delta < 0, 0).rolling(window=window_rsi).mean()
     RS = gain / loss
     rsi_series = 100 - (100 / (1 + RS))
-    data.insert(loc=position, column=(ticker, 'RSI_14'), value=rsi_series)
 
-    # Insert MACD and Signal Line
+    # Insert RSI after Adj Close column
+    adj_close_col_pos = data.columns.get_loc((ticker, 'Adj Close')) + 1
+    data.insert(loc=adj_close_col_pos, column=(ticker, 'RSI_14'), value=rsi_series)
+
+    # Compute MACD
     exp1 = data[(ticker, 'Adj Close')].ewm(span=window_macd_short, adjust=False).mean()
     exp2 = data[(ticker, 'Adj Close')].ewm(span=window_macd_long, adjust=False).mean()
     macd = exp1 - exp2
-    data.insert(loc=position + 1, column=(ticker, 'MACD'), value=macd)
-    data.insert(loc=position + 2, column=(ticker, 'Signal_Line'), value=macd.ewm(span=signal_line_window, adjust=False).mean())
+    signal_line = macd.ewm(span=signal_line_window, adjust=False).mean()
 
-# Drop rows with NaN values for these specific features
-data.dropna(subset=[
-    ('^GSPC', 'RSI_14'), 
-    ('^IXIC', 'RSI_14'), 
-    ('^N225', 'RSI_14')
-    ], inplace=True)
+    # Insert MACD and Signal Line after RSI column
+    rsi_col_pos = data.columns.get_loc((ticker, 'RSI_14')) + 1
+    data.insert(loc=rsi_col_pos, column=(ticker, 'MACD'), value=macd)
+    data.insert(loc=rsi_col_pos + 1, column=(ticker, 'Signal_Line'), value=signal_line)
 
-# Normalize only selected features
-def normalize_data(df, features):
+# Drop rows with NaN (due to RSI/MACD calculations)
+data.dropna(inplace=True)
+
+# -----------------------------
+# Train/Test Split Before Scaling
+# -----------------------------
+train_data = data[data.index < train_end_date]
+test_data = data[data.index >= train_end_date]
+
+# We'll scale each ticker's features separately for clarity.
+# Store scalers so we can apply the same scaler to test data.
+scalers = {}
+
+def scale_ticker_data(train_df, test_df, ticker):
+    # Extract the features for the current ticker
+    ticker_features = [(ticker, f) for f in selected_features if (ticker, f) in train_df.columns]
+
+    if not ticker_features:
+        return train_df, test_df  # In case some data is missing
+
+    # Fit scaler on training data only
     scaler = MinMaxScaler()
-    df.loc[:, features] = scaler.fit_transform(df[features])
-    return df
+    train_values = train_df.loc[:, ticker_features].values
+    train_scaled = scaler.fit_transform(train_values)
 
-# Normalize selected features for each ticker
+    # Apply to test data
+    test_values = test_df.loc[:, ticker_features].values
+    test_scaled = scaler.transform(test_values)
+
+    # Replace original columns with scaled values
+    train_df.loc[:, ticker_features] = train_scaled
+    test_df.loc[:, ticker_features] = test_scaled
+
+    scalers[ticker] = scaler
+    return train_df, test_df
+
+# Scale data ticker by ticker
 for ticker in tickers:
-    # Specify features to keep
-    features_to_normalize = [(ticker, 'Adj Close'), (ticker, 'Volume'),
-                             (ticker, 'RSI_14'), (ticker, 'MACD'), (ticker, 'Signal_Line')]
-    # Normalize only valid features
-    existing_features = [feature for feature in features_to_normalize if feature in data.columns]
-    if existing_features:
-        data.loc[:, existing_features] = normalize_data(data.loc[:, existing_features], existing_features)
+    train_data, test_data = scale_ticker_data(train_data, test_data, ticker)
 
-# Separate DataFrames for each ticker
-gspc_df = data['^GSPC']
-ixic_df = data['^IXIC']
-n225_df = data['^N225']
+# Separate DataFrames for each ticker after scaling
+gspc_df = pd.concat([train_data['^GSPC'], test_data['^GSPC']])
+ixic_df = pd.concat([train_data['^IXIC'], test_data['^IXIC']])
+n225_df = pd.concat([train_data['^N225'], test_data['^N225']])
 
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-import numpy as np
-
-# Create sequences for LSTM
+# -----------------------------
+# Sequence Creation Functions
+# -----------------------------
 def create_lstm_sequences(df, target_col, n_steps):
     X, y = [], []
     for i in range(len(df) - n_steps):
-        X.append(df.iloc[i:i + n_steps].values)
-        y.append(df.iloc[i + n_steps][target_col])
+        X.append(df.iloc[i:i+n_steps][selected_features].values)
+        y.append(df.iloc[i+n_steps][target_col])
     return np.array(X), np.array(y)
 
-# Define the LSTM model
+def create_sequences_sklearn(df, target_col, n_steps):
+    X, y = [], []
+    for i in range(len(df) - n_steps):
+        seq_features = df.iloc[i:i+n_steps][selected_features].values.flatten()
+        X.append(seq_features)
+        y.append(df.iloc[i+n_steps][target_col])
+    return np.array(X), np.array(y)
+
 def create_lstm_model(input_shape):
     model = Sequential([
         LSTM(50, activation='tanh', return_sequences=True, input_shape=input_shape),
@@ -98,124 +140,75 @@ def create_lstm_model(input_shape):
     model.compile(optimizer='adam', loss='mse', metrics=['mae'])
     return model
 
-# Set parameters
-n_steps = 30  # Number of past days used to predict the next day's price
-epochs = 20
-batch_size = 32
+# -----------------------------
+# Training and Evaluation
+# -----------------------------
+results = {"LSTM": {}, "SVM": {}, "XGBoost": {}}
 
-# Prepare data for each index
-results = {}
-for index_name, df in {"S&P 500": gspc_df, "NASDAQ": ixic_df, "Nikkei 225": n225_df}.items():
-    print(f"\nTraining and evaluating for {index_name} with raw features...")
+indices_dict = {
+    "S&P 500": gspc_df,
+    "NASDAQ": ixic_df,
+    "Nikkei 225": n225_df
+}
 
-    # Select only raw features
-    selected_features = ['Adj Close', 'Volume']
-    available_features = [col for col in selected_features if col in df.columns]
-    selected_features_df = df[available_features]
+for index_name, df in indices_dict.items():
+    print(f"\nTraining and evaluating models for {index_name}...")
 
-    # Add random noise to simulate real-world unpredictability
-    selected_features_df['Adj Close'] += np.random.normal(0, 0.01, len(selected_features_df))
+    # Split back into train/test using the chosen date
+    train_idx = df.index < train_end_date
+    test_idx = df.index >= train_end_date
+    train_subset = df[train_idx].copy()
+    test_subset = df[test_idx].copy()
 
-    # Split into train (2010–2017) and test (2018–2022)
-    train_data = selected_features_df[selected_features_df.index < '2018-01-01']
-    test_data = selected_features_df[selected_features_df.index >= '2018-01-01']
+    # LSTM
+    X_train_lstm, y_train_lstm = create_lstm_sequences(train_subset, target_col='Adj Close', n_steps=n_steps)
+    X_test_lstm, y_test_lstm = create_lstm_sequences(test_subset, target_col='Adj Close', n_steps=n_steps)
+    if X_train_lstm.size == 0 or X_test_lstm.size == 0:
+        print(f"Not enough data for LSTM for {index_name}, skipping.")
+        continue
+    lstm_model = create_lstm_model(input_shape=(X_train_lstm.shape[1], X_train_lstm.shape[2]))
+    lstm_model.fit(X_train_lstm, y_train_lstm, epochs=epochs, batch_size=batch_size, verbose=1)
+    y_pred_lstm = lstm_model.predict(X_test_lstm).flatten()
+    results["LSTM"][index_name] = {
+        "MSE": mean_squared_error(y_test_lstm, y_pred_lstm),
+        "MAE": mean_absolute_error(y_test_lstm, y_pred_lstm),
+        "R^2": r2_score(y_test_lstm, y_pred_lstm),
+    }
 
-    # Create LSTM sequences
-    X_train, y_train = create_lstm_sequences(train_data, target_col='Adj Close', n_steps=n_steps)
-    X_test, y_test = create_lstm_sequences(test_data, target_col='Adj Close', n_steps=n_steps)
+    # SVM
+    X_train_svm, y_train_svm = create_sequences_sklearn(train_subset, target_col='Adj Close', n_steps=n_steps)
+    X_test_svm, y_test_svm = create_sequences_sklearn(test_subset, target_col='Adj Close', n_steps=n_steps)
+    if X_train_svm.size == 0 or X_test_svm.size == 0:
+        print(f"Not enough data for SVM for {index_name}, skipping.")
+        continue
 
-    # Train the model
-    model = create_lstm_model(input_shape=(X_train.shape[1], X_train.shape[2]))
-    model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=1)
-
-    # Evaluate the model
-    y_pred = model.predict(X_test).flatten()
-    mse = mean_squared_error(y_test, y_pred)
-    mae = mean_absolute_error(y_test, y_pred)
-    r2 = r2_score(y_test, y_pred)
-
-    results[index_name] = {"MSE": mse, "MAE": mae, "R^2": r2}
-
-    # Print results
-    print(f"{index_name} Results:")
-    print(f"Test MSE: {mse:.5f}, Test MAE: {mae:.5f}, Test R^2: {r2:.5f}")
-
-# Display all results
-print("\nFinal Results for All Indices:")
-for index_name, metrics in results.items():
-    print(f"{index_name} - MSE: {metrics['MSE']:.5f}, MAE: {metrics['MAE']:.5f}, R^2: {metrics['R^2']:.5f}")
-
-from sklearn.svm import SVR
-from xgboost import XGBRegressor
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-from sklearn.preprocessing import StandardScaler
-
-# Prepare data for each index
-results_svm = {}
-results_xgb = {}
-n_steps = 30  # Number of past days used to predict the next day's price
-
-# Create sequences for SVM and XGBoost (requires reshaping)
-def create_sequences_sklearn(df, target_col, n_steps):
-    X, y = [], []
-    for i in range(len(df) - n_steps):
-        X.append(df.iloc[i:i + n_steps].values.flatten())  # Flatten time steps into 1D for sklearn
-        y.append(df.iloc[i + n_steps][target_col])
-    return np.array(X), np.array(y)
-
-# Standardize the features for SVM and XGBoost
-scaler = StandardScaler()
-
-for index_name, df in {"S&P 500": gspc_df, "NASDAQ": ixic_df, "Nikkei 225": n225_df}.items():
-    print(f"\nTraining and evaluating SVM and XGBoost for {index_name} with raw features...")
-
-    # Select only raw features
-    selected_features = ['Adj Close', 'Volume']
-    available_features = [col for col in selected_features if col in df.columns]
-    selected_features_df = df[available_features]
-
-    # Split into train (2010–2017) and test (2018–2022)
-    train_data = selected_features_df[selected_features_df.index < '2018-01-01']
-    test_data = selected_features_df[selected_features_df.index >= '2018-01-01']
-
-    # Create sequences
-    X_train, y_train = create_sequences_sklearn(train_data, target_col='Adj Close', n_steps=n_steps)
-    X_test, y_test = create_sequences_sklearn(test_data, target_col='Adj Close', n_steps=n_steps)
-
-    # Standardize the features
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
-
-    # ---------- Train SVM Model ----------
-    print(f"Training SVM for {index_name}...")
+    # No double scaling here; data already scaled
     svm_model = SVR(kernel='rbf', C=100, epsilon=0.01)
-    svm_model.fit(X_train, y_train)
-    y_pred_svm = svm_model.predict(X_test)
-    mse_svm = mean_squared_error(y_test, y_pred_svm)
-    mae_svm = mean_absolute_error(y_test, y_pred_svm)
-    r2_svm = r2_score(y_test, y_pred_svm)
-    results_svm[index_name] = {"MSE": mse_svm, "MAE": mae_svm, "R^2": r2_svm}
-    print(f"SVM {index_name} Results: MSE: {mse_svm:.5f}, MAE: {mae_svm:.5f}, R^2: {r2_svm:.5f}")
+    svm_model.fit(X_train_svm, y_train_svm)
+    y_pred_svm = svm_model.predict(X_test_svm)
+    results["SVM"][index_name] = {
+        "MSE": mean_squared_error(y_test_svm, y_pred_svm),
+        "MAE": mean_absolute_error(y_test_svm, y_pred_svm),
+        "R^2": r2_score(y_test_svm, y_pred_svm),
+    }
 
-    # ---------- Train XGBoost Model ----------
-    print(f"Training XGBoost for {index_name}...")
+    # XGBoost
     xgb_model = XGBRegressor(n_estimators=100, learning_rate=0.1, max_depth=3, random_state=42)
-    xgb_model.fit(X_train, y_train)
-    y_pred_xgb = xgb_model.predict(X_test)
-    mse_xgb = mean_squared_error(y_test, y_pred_xgb)
-    mae_xgb = mean_absolute_error(y_test, y_pred_xgb)
-    r2_xgb = r2_score(y_test, y_pred_xgb)
-    results_xgb[index_name] = {"MSE": mse_xgb, "MAE": mae_xgb, "R^2": r2_xgb}
-    print(f"XGBoost {index_name} Results: MSE: {mse_xgb:.5f}, MAE: {mae_xgb:.5f}, R^2: {r2_xgb:.5f}")
+    xgb_model.fit(X_train_svm, y_train_svm)
+    y_pred_xgb = xgb_model.predict(X_test_svm)
+    results["XGBoost"][index_name] = {
+        "MSE": mean_squared_error(y_test_svm, y_pred_xgb),
+        "MAE": mean_absolute_error(y_test_svm, y_pred_xgb),
+        "R^2": r2_score(y_test_svm, y_pred_xgb),
+    }
 
-# Display Final Results
-print("\nFinal Results for SVM:")
-for index_name, metrics in results_svm.items():
-    print(f"{index_name} - MSE: {metrics['MSE']:.5f}, MAE: {metrics['MAE']:.5f}, R^2: {metrics['R^2']:.5f}")
-
-print("\nFinal Results for XGBoost:")
-for index_name, metrics in results_xgb.items():
-    print(f"{index_name} - MSE: {metrics['MSE']:.5f}, MAE: {metrics['MAE']:.5f}, R^2: {metrics['R^2']:.5f}")
+# -----------------------------
+# Print Final Results
+# -----------------------------
+for model_name, model_results in results.items():
+    print(f"\nFinal Results for {model_name}:")
+    for index_name, metrics in model_results.items():
+        print(f"{index_name} - MSE: {metrics['MSE']:.5f}, MAE: {metrics['MAE']:.5f}, R^2: {metrics['R^2']:.5f}")
 
 
 
