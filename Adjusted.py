@@ -20,7 +20,11 @@ n_steps = 30
 epochs = 20
 batch_size = 32
 
-selected_features = ['Open', 'High', 'Low', 'Adj Close', 'Volume', 'RSI_14', 'MACD', 'Signal_Line']
+# We are now including SMA_30 and Bollinger Bands in addition to RSI_14, MACD, Signal_Line.
+selected_features = [
+    'Open', 'High', 'Low', 'Adj Close', 'Volume', 
+    'SMA_30', 'RSI_14', 'MACD', 'Signal_Line', 'Upper_Band', 'Lower_Band'
+]
 
 # -----------------------------
 # Data Fetching
@@ -38,36 +42,65 @@ data = data.ffill()
 # -----------------------------
 # Compute Technical Indicators
 # -----------------------------
+window_sma = 30
 window_rsi = 14
 window_macd_short = 12
 window_macd_long = 26
 signal_line_window = 9
+window_boll = 20
 
 for ticker in tickers:
-    # Compute RSI
+    # Position after Adj Close column to insert new features
+    position = data.columns.get_loc((ticker, 'Adj Close')) + 1
+
+    # SMA_30
+    sma_series = data[(ticker, 'Adj Close')].rolling(window=window_sma).mean()
+    data.insert(loc=position, column=(ticker, 'SMA_30'), value=sma_series)
+    position += 1
+
+    # RSI_14
     delta = data[(ticker, 'Adj Close')].diff(1)
     gain = delta.where(delta > 0, 0).rolling(window=window_rsi).mean()
     loss = -delta.where(delta < 0, 0).rolling(window=window_rsi).mean()
     RS = gain / loss
     rsi_series = 100 - (100 / (1 + RS))
+    data.insert(loc=position, column=(ticker, 'RSI_14'), value=rsi_series)
+    position += 1
 
-    # Insert RSI after Adj Close column
-    adj_close_col_pos = data.columns.get_loc((ticker, 'Adj Close')) + 1
-    data.insert(loc=adj_close_col_pos, column=(ticker, 'RSI_14'), value=rsi_series)
-
-    # Compute MACD
+    # MACD and Signal Line
     exp1 = data[(ticker, 'Adj Close')].ewm(span=window_macd_short, adjust=False).mean()
     exp2 = data[(ticker, 'Adj Close')].ewm(span=window_macd_long, adjust=False).mean()
     macd = exp1 - exp2
     signal_line = macd.ewm(span=signal_line_window, adjust=False).mean()
+    data.insert(loc=position, column=(ticker, 'MACD'), value=macd)
+    data.insert(loc=position+1, column=(ticker, 'Signal_Line'), value=signal_line)
+    position += 2
 
-    # Insert MACD and Signal Line after RSI column
-    rsi_col_pos = data.columns.get_loc((ticker, 'RSI_14')) + 1
-    data.insert(loc=rsi_col_pos, column=(ticker, 'MACD'), value=macd)
-    data.insert(loc=rsi_col_pos + 1, column=(ticker, 'Signal_Line'), value=signal_line)
+    # Bollinger Bands
+    sma_boll = data[(ticker, 'Adj Close')].rolling(window=window_boll).mean()
+    rstd = data[(ticker, 'Adj Close')].rolling(window=window_boll).std()
+    upper_band = sma_boll + 2 * rstd
+    lower_band = sma_boll - 2 * rstd
+    data.insert(loc=position, column=(ticker, 'Upper_Band'), value=upper_band)
+    data.insert(loc=position+1, column=(ticker, 'Lower_Band'), value=lower_band)
+    # position updated by inserting 2 columns
+    # no need to update position if not adding more after Bollinger Bands
 
-# Drop rows with NaN (due to RSI/MACD calculations)
-data.dropna(inplace=True)
+# Drop rows that have NaN values due to indicators
+drop_subset = []
+for ticker in tickers:
+    drop_subset.extend([
+        (ticker, 'SMA_30'),
+        (ticker, 'RSI_14'),
+        (ticker, 'Upper_Band'),
+        (ticker, 'Lower_Band'),
+        # MACD and Signal_Line require shorter warmup, but dropping on these ensures all indicators are valid.
+        (ticker, 'MACD'),
+        (ticker, 'Signal_Line')
+    ])
+
+drop_subset = list(set(drop_subset))  # remove duplicates if any
+data.dropna(subset=drop_subset, inplace=True)
 
 # -----------------------------
 # Train/Test Split Before Scaling
@@ -75,27 +108,22 @@ data.dropna(inplace=True)
 train_data = data[data.index < train_end_date]
 test_data = data[data.index >= train_end_date]
 
-# We'll scale each ticker's features separately for clarity.
-# Store scalers so we can apply the same scaler to test data.
 scalers = {}
 
 def scale_ticker_data(train_df, test_df, ticker):
-    # Extract the features for the current ticker
+    # Extract features for current ticker
     ticker_features = [(ticker, f) for f in selected_features if (ticker, f) in train_df.columns]
 
     if not ticker_features:
-        return train_df, test_df  # In case some data is missing
+        return train_df, test_df
 
-    # Fit scaler on training data only
     scaler = MinMaxScaler()
     train_values = train_df.loc[:, ticker_features].values
     train_scaled = scaler.fit_transform(train_values)
 
-    # Apply to test data
     test_values = test_df.loc[:, ticker_features].values
     test_scaled = scaler.transform(test_values)
 
-    # Replace original columns with scaled values
     train_df.loc[:, ticker_features] = train_scaled
     test_df.loc[:, ticker_features] = test_scaled
 
@@ -106,7 +134,7 @@ def scale_ticker_data(train_df, test_df, ticker):
 for ticker in tickers:
     train_data, test_data = scale_ticker_data(train_data, test_data, ticker)
 
-# Separate DataFrames for each ticker after scaling
+# Combine the scaled data back for each ticker
 gspc_df = pd.concat([train_data['^GSPC'], test_data['^GSPC']])
 ixic_df = pd.concat([train_data['^IXIC'], test_data['^IXIC']])
 n225_df = pd.concat([train_data['^N225'], test_data['^N225']])
@@ -154,11 +182,9 @@ indices_dict = {
 for index_name, df in indices_dict.items():
     print(f"\nTraining and evaluating models for {index_name}...")
 
-    # Split back into train/test using the chosen date
-    train_idx = df.index < train_end_date
-    test_idx = df.index >= train_end_date
-    train_subset = df[train_idx].copy()
-    test_subset = df[test_idx].copy()
+    # Split into train/test subsets again
+    train_subset = df[df.index < train_end_date].copy()
+    test_subset = df[df.index >= train_end_date].copy()
 
     # LSTM
     X_train_lstm, y_train_lstm = create_lstm_sequences(train_subset, target_col='Adj Close', n_steps=n_steps)
@@ -182,7 +208,6 @@ for index_name, df in indices_dict.items():
         print(f"Not enough data for SVM for {index_name}, skipping.")
         continue
 
-    # No double scaling here; data already scaled
     svm_model = SVR(kernel='rbf', C=100, epsilon=0.01)
     svm_model.fit(X_train_svm, y_train_svm)
     y_pred_svm = svm_model.predict(X_test_svm)
